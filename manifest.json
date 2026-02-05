@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS直聘 AI 招聘官 (DeepSeek版)",
+  "version": "4.1.0",
+  "description": "基于 DeepSeek V3 的智能简历筛选工具 - 内部专用",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "permissions": [
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "*://*.zhipin.com/*",
+    "*://*.bosszhipin.com/*", 
+    "https://api.deepseek.com/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sounds/*.mp3"
+      ],
+      "matches": [
+        "*://*.zhipin.com/*",
+        "*://*.bosszhipin.com/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.zhipin.com/*",
+        "*://*.bosszhipin.com/*"
+      ],
+      "js": [
+        "content_scripts/sites/common.js",
+        "content_scripts/sites/boss.js",
+        "content_scripts/index.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    },
+    "default_title": "AI 招聘助手",
+    "default_popup": "popup/index.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

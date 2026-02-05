@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 招聘官控制台</title>
+    <style>
+        :root { --primary: #2196f3; --success: #4caf50; --danger: #f44336; --bg: #f5f7fa; }
+        body { width: 380px; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; background: var(--bg); color: #333; }
+        
+        /* 头部 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
+        .title { font-size: 16px; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 5px; }
+        .version { font-size: 12px; color: #999; background: #eee; padding: 2px 6px; border-radius: 4px; }
+
+        /* 卡片容器 */
+        .card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #555; border-left: 3px solid var(--primary); padding-left: 8px; }
+
+        /* 输入组 */
+        .input-group { display: flex; gap: 8px; margin-bottom: 8px; }
+        input[type="text"], input[type="number"] { flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        button { cursor: pointer; border: none; border-radius: 4px; padding: 6px 12px; font-size: 13px; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-outline { background: transparent; border: 1px solid #ddd; color: #666; }
+
+        /* 标签列表 */
+        .tag-container { display: flex; flex-wrap: wrap; gap: 6px; max-height: 80px; overflow-y: auto; }
+        .tag { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 12px; background: #e3f2fd; color: var(--primary); border: 1px solid #bbdefb; }
+        .tag.exclude { background: #ffebee; color: var(--danger); border-color: #ffcdd2; }
+        .tag.active { background: var(--primary); color: white; }
+        .tag button { background: none; border: none; padding: 0; font-size: 14px; color: inherit; line-height: 1; margin-left: 2px; }
+
+        /* 参数设置网格 */
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .config-item { display: flex; flex-direction: column; gap: 4px; }
+        .config-item label { font-size: 12px; color: #666; }
+        .checkbox-group { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; margin-top: 5px; }
+
+        /* 日志窗口 */
+        #log-container { height: 150px; background: #1e1e1e; color: #00ff00; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; overflow-y: auto; margin-bottom: 10px; }
+
+        /* 底部操作栏 */
+        .action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .action-bar button { padding: 10px; font-weight: bold; }
+        .hidden { display: none !important; }
+        
+        /* 关键词标签样式兼容 */
+        .position-tag, .keyword-tag {
+            background: #f0f2f5; border: 1px solid #e0e3e7; padding: 2px 8px; border-radius: 12px;
+            font-size: 12px; color: #666; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+        }
+        .position-tag.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .keyword-tag button { background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="title">🤖 DeepSeek 招聘官</div>
+        <span id="version" class="version">v5.0</span>
+    </div>
+
+    <div class="card">
+        <div class="card-title">岗位策略管理</div>
+        <div class="input-group">
+            <input type="text" id="position-input" placeholder="输入岗位 (如: 亚马逊运营)">
+            <button id="add-position" class="btn-primary">添加</button>
+        </div>
+        <div id="position-list" class="tag-container">
+            </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">关键词 (影响 Prompt)</div>
+        <div class="input-group">
+            <input type="text" id="keyword-input" placeholder="输入关键词">
+            <button id="add-keyword" class="btn-outline" title="必须包含">➕ 包含</button>
+            <button id="add-exclude-keyword" class="btn-outline" style="color:var(--danger)" title="一票否决">➖ 排除</button>
+        </div>
+        <div class="checkbox-group">
+            <input type="checkbox" id="keywords-and-mode">
+            <label for="keywords-and-mode">严格模式 (须包含所有关键词)</label>
+        </div>
+        <div style="margin-top: 8px;">
+            <div id="keyword-list" class="tag-container" style="margin-bottom: 5px;"></div>
+            <div id="exclude-keyword-list" class="tag-container"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">运行参数</div>
+        <div class="config-grid">
+            <div class="config-item">
+                <label>打招呼上限</label>
+                <input type="number" id="match-limit" value="200">
+            </div>
+            <div class="config-item">
+                <label>点击频率 (秒)</label>
+                <input type="number" id="click-frequency" value="7" title="AI模式下此项仅作参考">
+            </div>
+            <div class="config-item">
+                <label>最小延迟 (秒)</label>
+                <input type="number" id="delay-min" value="3">
+            </div>
+            <div class="config-item">
+                <label>最大延迟 (秒)</label>
+                <input type="number" id="delay-max" value="5">
+            </div>
+        </div>
+        <div class="checkbox-group" style="margin-top:10px;">
+            <input type="checkbox" id="enable-sound" checked>
+            <label for="enable-sound">开启提示音</label>
+        </div>
+    </div>
+
+    <div id="log-container">
+        </div>
+
+    <div id="initialButtons" class="action-bar">
+        <button id="scrollButton" class="btn-success">▶ 开始 AI 筛选</button>
+        <button id="downloadButton" class="btn-primary">⬇ 批量下载简历</button>
+    </div>
+
+    <div id="stopButtons" class="action-bar hidden">
+        <button id="stopButton" class="btn-danger" style="grid-column: span 2;">⏹ 停止任务</button>
+    </div>
+
+    <script src="index.js"></script>
+</body>
+</html>
