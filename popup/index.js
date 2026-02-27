@@ -138,7 +138,8 @@ async function startTask() {
             chrome.tabs.sendMessage(tabs[0].id, {
                 action: 'START_SCROLL',
                 data: {
-                    keywords: currentPosition.keywords, // AI 根据这些关键词匹配 Prompt
+                    positionName: currentPosition.name, // 🔥🔥🔥 [唯一改动] 传递岗位名称 🔥🔥🔥
+                    keywords: currentPosition.keywords,
                     excludeKeywords: currentPosition.excludeKeywords,
                     isAndMode: isAndMode,
                     matchLimit: matchLimit,

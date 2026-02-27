@@ -2,18 +2,9 @@
 // 核心入口 - 负责监听指令并调度具体的 Parser
 
 (function () {
-  // 🔥🔥🔥 [防重复注入] 如果已经注入过,直接退出 🔥🔥🔥
-  if (window.GoodHR_Index_Loaded) {
-    console.log('[GoodHR] 核心脚本已存在,跳过重复注入');
-    return;
-  }
-  window.GoodHR_Index_Loaded = true;
   console.log('[GoodHR] 核心脚本已注入');
 
   let currentWorker = null; // 当前正在工作的实例 (Parser 或 Downloader)
-  
-  // 🔥🔥🔥 [全局运行锁] 防止多个循环同时运行 🔥🔥🔥
-  let isLoopRunning = false;
 
   // 检查是否在 BOSS 直聘页面
   function isBossPage() {
@@ -42,21 +33,20 @@
         switch (message.action) {
           // === 自动打招呼 ===
           case 'START_SCROLL':
-            // 🔥🔥🔥 [运行锁检查] 如果已经有循环在跑,拒绝启动 🔥🔥🔥
-            if (isLoopRunning) {
-              console.warn('[GoodHR] 已有任务在运行中,拒绝重复启动');
-              sendResponse({ status: 'already_running' });
-              break;
-            }
-            
             if (currentWorker) currentWorker.stop = true; // 先停止之前的
             
             // 实例化打招呼机器人
             currentWorker = new window.BossParser();
             
-            // 注入配置 (关键词等)
+            // 🔥🔥🔥 [唯一改动] 传递岗位名称 🔥🔥🔥
             if (message.data) {
-              currentWorker.setFilterSettings(message.data);
+              currentWorker.setFilterSettings({
+                positionName: message.data.positionName,
+                keywords: message.data.keywords,
+                excludeKeywords: message.data.excludeKeywords,
+                isAndMode: message.data.isAndMode,
+                matchLimit: message.data.matchLimit
+              });
             }
             
             sendResponse({ status: 'started' });
@@ -69,7 +59,6 @@
               currentWorker.stop = true; // 设置停止标志
               currentWorker = null;
             }
-            isLoopRunning = false; // 🔥 释放运行锁
             sendResponse({ status: 'stopped' });
             break;
 
@@ -115,9 +104,6 @@
 
   // === 适配 AI 的异步调度循环 (已修正并整合在主函数内部) ===
   async function startGreetLoop(parser, settings) {
-    // 🔥🔥🔥 [加锁] 标记循环开始运行 🔥🔥🔥
-    isLoopRunning = true;
-    
     parser.stop = false;
     let matchCount = 0;
     let noNewItemsCount = 0; // 空转计数器 (防止到底后死循环)
@@ -125,12 +111,12 @@
 
     console.log('[GoodHR] AI 招聘官已就位，开始阅卷...');
 
-    try {
-      while (!parser.stop) {
+    while (!parser.stop) {
+      try {
         // --- 第一步：寻找本页未处理的候选人 ---
         const elements = parser.findElements();
-        // ✅ 修复:不要在这里再过滤一遍,findElements已经过滤过了
-        const newElements = elements;
+        // 过滤掉已经打过标签的 (data-processed="true")
+        const newElements = elements.filter(el => !el.dataset.processed);
 
         // --- 第二步：如果没有新人，尝试滚动加载 ---
         if (newElements.length === 0) {
@@ -144,7 +130,6 @@
           if (noNewItemsCount >= 5) {
             alert('页面已到底或无法加载更多，任务自动结束。');
             parser.stop = true;
-            isLoopRunning = false; // 🔥 释放锁
             chrome.runtime.sendMessage({ type: 'SCROLL_COMPLETE' });
             return;
           }
@@ -158,7 +143,8 @@
         for (const el of newElements) {
           if (parser.stop) break; // 允许随时通过按钮停止
 
-          // ✅ 修复:不需要在这里标记,filterCandidateAsync里会统一标记
+          // 1. 标记为已处理 (防止重复看)
+          el.dataset.processed = 'true';
           parser.highlightElement(el, 'processing');
 
           // 2. 核心：调用 AI 进行异步判决
@@ -212,7 +198,6 @@
                 // 检查是否完成任务
                 if (matchCount >= matchLimit) {
                   parser.stop = true;
-                  isLoopRunning = false; // 🔥 释放锁
                   alert(`🎉 任务完成！AI 已为你沟通了 ${matchCount} 位候选人。`);
                   return;
                 }
@@ -236,16 +221,13 @@
           // 处理完一个人，稍微喘口气 (拟人化间隔)
           await parser.sleep(1000, 1000);
         }
+
+      } catch (error) {
+        console.error('[Loop Error] 循环异常:', error);
+        // 出错后休息一会再试，防止死循环刷报错
+        await parser.sleep(5000);
       }
-    } catch (error) {
-      console.error('[Loop Error] 循环异常:', error);
-      // 出错后休息一会再试，防止死循环刷报错
-      await parser.sleep(5000);
     }
-    
-    // 🔥🔥🔥 [解锁] 循环结束,释放锁 🔥🔥🔥
-    isLoopRunning = false;
-    console.log('[GoodHR] 任务循环已结束,锁已释放');
   }
 
 })();
